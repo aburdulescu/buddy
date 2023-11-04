@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/ianlancetaylor/demangle"
@@ -90,8 +91,15 @@ func Run(args []string) error {
 
 	symbols := make([]Symbol, len(rawSymbols))
 	for i, sym := range rawSymbols {
+		name := sym.Name
+
+		// strip symbol version
+		if i := strings.Index(name, "@"); i != -1 {
+			name = name[:i]
+		}
+
 		symbols[i] = Symbol{
-			Name:       nameFilter(sym.Name),
+			Name:       nameFilter(name),
 			Binding:    elf.ST_BIND(sym.Info).String(),
 			Type:       elf.ST_TYPE(sym.Info).String(),
 			Visibility: elf.ST_VISIBILITY(sym.Other).String(),
