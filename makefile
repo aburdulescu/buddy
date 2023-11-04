@@ -1,4 +1,6 @@
-build: vet lint
+all: build vet lint
+
+build:
 	go build
 
 vet:

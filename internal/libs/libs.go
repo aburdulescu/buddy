@@ -1,20 +1,19 @@
-package main
+package libs
 
 import (
 	"debug/elf"
 	"fmt"
-	"os"
 )
 
-func main() {
-	for _, path := range os.Args[1:] {
-		if err := run(path); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+func Run(args []string) error {
+	for _, file := range args {
+		if err := run(file); err != nil {
+			return err
 		}
 	}
-}
+	return nil
 
+}
 func run(path string) error {
 	file, err := elf.Open(path)
 	if err != nil {

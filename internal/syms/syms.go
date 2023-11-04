@@ -1,4 +1,4 @@
-package main
+package syms
 
 import (
 	"debug/elf"
@@ -12,29 +12,31 @@ import (
 	"github.com/ianlancetaylor/demangle"
 )
 
-var (
-	demangleMode = flag.String("demangle", "short", "How to demangle C++/Rust names: none, short, full")
-	symbolTable  = flag.String("table", "symtab", "Symbol table to read: symtab or dynsym")
-	outFile      = flag.String("o", "", "Path to output file")
-	writeJSON    = flag.Bool("json", false, "Write output as JSON")
-)
+func Run(args []string) error {
+	fset := flag.NewFlagSet("syms", flag.ContinueOnError)
 
-func main() {
-	flag.Parse()
-	if err := run(flag.Arg(0)); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	var (
+		demangleMode = fset.String("demangle", "short", "How to demangle C++/Rust names: none, short, full")
+		symbolTable  = fset.String("table", "symtab", "Symbol table to read: symtab or dynsym")
+		outFile      = fset.String("o", "", "Path to output file")
+		writeJSON    = fset.Bool("json", false, "Write output as JSON")
+	)
+
+	if err := fset.Parse(args); err != nil {
+		return err
 	}
-}
 
-func run(path string) error {
 	switch *demangleMode {
 	case "none", "short", "full":
 	default:
 		return fmt.Errorf("unknown value for -demangle: %s", *demangleMode)
 	}
 
-	file, err := elf.Open(path)
+	if fset.NArg() < 1 {
+		return fmt.Errorf("need file")
+	}
+
+	file, err := elf.Open(fset.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -101,10 +103,7 @@ func run(path string) error {
 	}
 
 	if *writeJSON {
-		if err := json.NewEncoder(out).Encode(symbols); err != nil {
-			return err
-		}
-		return nil
+		return json.NewEncoder(out).Encode(symbols)
 	}
 
 	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
