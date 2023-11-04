@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	noDemangle  = flag.Bool("no-demangle", false, "Do not demangle C++/Rust names")
-	symbolTable = flag.String("t", "symtab", "Symbol table to read: symtab or dynsym")
-	outFile     = flag.String("o", "", "Path to output file")
-	writeJSON   = flag.Bool("json", false, "Write output as JSON")
+	demangleMode = flag.String("demangle", "short", "How to demangle C++/Rust names: none, short, full")
+	symbolTable  = flag.String("table", "symtab", "Symbol table to read: symtab or dynsym")
+	outFile      = flag.String("o", "", "Path to output file")
+	writeJSON    = flag.Bool("json", false, "Write output as JSON")
 )
 
 func main() {
@@ -28,21 +28,27 @@ func main() {
 }
 
 func run(path string) error {
+	switch *demangleMode {
+	case "none", "short", "full":
+	default:
+		return fmt.Errorf("unknown value for -demangle: %s", *demangleMode)
+	}
+
 	file, err := elf.Open(path)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	var symbols []elf.Symbol
+	var rawSymbols []elf.Symbol
 
 	switch *symbolTable {
 	case "symtab":
-		symbols, err = file.Symbols()
+		rawSymbols, err = file.Symbols()
 	case "dynsym":
-		symbols, err = file.DynamicSymbols()
+		rawSymbols, err = file.DynamicSymbols()
 	default:
-		return fmt.Errorf("unknown value for -t: %s", *symbolTable)
+		return fmt.Errorf("unknown value for -table: %s", *symbolTable)
 	}
 
 	if err != nil {
@@ -59,6 +65,41 @@ func run(path string) error {
 		out = f
 	}
 
+	var nameFilter func(name string) string
+
+	switch *demangleMode {
+	case "none":
+		nameFilter = func(name string) string { return name }
+	case "short":
+		opts := []demangle.Option{
+			demangle.NoParams,
+			demangle.NoTemplateParams,
+			demangle.NoEnclosingParams,
+			demangle.NoRust,
+		}
+		nameFilter = func(name string) string {
+			return demangle.Filter(name, opts...)
+		}
+	case "full":
+		nameFilter = func(name string) string {
+			return demangle.Filter(name)
+		}
+	}
+
+	symbols := make([]Symbol, len(rawSymbols))
+	for i, sym := range rawSymbols {
+		symbols[i] = Symbol{
+			Name:       nameFilter(sym.Name),
+			Binding:    elf.ST_BIND(sym.Info).String(),
+			Type:       elf.ST_TYPE(sym.Info).String(),
+			Visibility: elf.ST_VISIBILITY(sym.Other).String(),
+			Library:    sym.Library,
+			Version:    sym.Version,
+			Value:      sym.Value,
+			Size:       sym.Size,
+		}
+	}
+
 	if *writeJSON {
 		if err := json.NewEncoder(out).Encode(symbols); err != nil {
 			return err
@@ -73,23 +114,30 @@ func run(path string) error {
 	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t-----\t----\t----")
 
 	for _, sym := range symbols {
-		name := sym.Name
-		if !*noDemangle {
-			name = demangle.Filter(name)
-		}
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\n",
-			elf.ST_BIND(sym.Info),
-			elf.ST_TYPE(sym.Info),
-			elf.ST_VISIBILITY(sym.Other),
+			sym.Binding,
+			sym.Type,
+			sym.Visibility,
 			sym.Library,
 			sym.Version,
 			sym.Value,
 			sym.Size,
-			name,
+			sym.Name,
 		)
 	}
 
 	return nil
+}
+
+type Symbol struct {
+	Name       string
+	Binding    string
+	Type       string
+	Visibility string
+	Library    string
+	Version    string
+	Value      uint64
+	Size       uint64
 }
