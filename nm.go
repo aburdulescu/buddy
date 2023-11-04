@@ -2,8 +2,10 @@ package main
 
 import (
 	"debug/elf"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 
@@ -13,15 +15,15 @@ import (
 var (
 	noDemangle  = flag.Bool("no-demangle", false, "Do not demangle C++/Rust names")
 	symbolTable = flag.String("t", "symtab", "Symbol table to read: symtab or dynsym")
+	outFile     = flag.String("o", "", "Path to output file")
+	writeJSON   = flag.Bool("json", false, "Write output as JSON")
 )
 
 func main() {
 	flag.Parse()
-	for _, path := range flag.Args() {
-		if err := run(path); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
-		}
+	if err := run(flag.Arg(0)); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
 	}
 }
 
@@ -47,11 +49,28 @@ func run(path string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	var out io.Writer = os.Stdout
+	if *outFile != "" {
+		f, err := os.Create(*outFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		out = f
+	}
+
+	if *writeJSON {
+		if err := json.NewEncoder(out).Encode(symbols); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tSize\tName")
-	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t----\t----")
+	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tValue\tSize\tName")
+	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t-----\t----\t----")
 
 	for _, sym := range symbols {
 		name := sym.Name
@@ -60,12 +79,13 @@ func run(path string) error {
 		}
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\n",
 			elf.ST_BIND(sym.Info),
 			elf.ST_TYPE(sym.Info),
 			elf.ST_VISIBILITY(sym.Other),
 			sym.Library,
 			sym.Version,
+			sym.Value,
 			sym.Size,
 			name,
 		)
