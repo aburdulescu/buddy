@@ -1,3 +1,3 @@
-# buddy
+# buddy the elf
 
-elf utilities.
+Command line tool for extracting information from `ELF` files.
