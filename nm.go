@@ -50,8 +50,8 @@ func run(path string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tName")
-	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t----")
+	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tSize\tName")
+	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t----\t----")
 
 	for _, sym := range symbols {
 		name := sym.Name
@@ -60,12 +60,13 @@ func run(path string) error {
 		}
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
 			elf.ST_BIND(sym.Info),
 			elf.ST_TYPE(sym.Info),
 			elf.ST_VISIBILITY(sym.Other),
 			sym.Library,
 			sym.Version,
+			sym.Size,
 			name,
 		)
 	}
