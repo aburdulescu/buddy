@@ -93,20 +93,24 @@ func Run(args []string) error {
 	for i, sym := range rawSymbols {
 		name := sym.Name
 
+		nameVersion := ""
+
 		// strip symbol version
 		if i := strings.Index(name, "@"); i != -1 {
+			nameVersion = name[i:]
 			name = name[:i]
 		}
 
 		symbols[i] = Symbol{
-			Name:       nameFilter(name),
-			Binding:    elf.ST_BIND(sym.Info).String(),
-			Type:       elf.ST_TYPE(sym.Info).String(),
-			Visibility: elf.ST_VISIBILITY(sym.Other).String(),
-			Library:    sym.Library,
-			Version:    sym.Version,
-			Value:      sym.Value,
-			Size:       sym.Size,
+			Name:        nameFilter(name),
+			NameVersion: nameVersion,
+			Binding:     elf.ST_BIND(sym.Info).String(),
+			Type:        elf.ST_TYPE(sym.Info).String(),
+			Visibility:  elf.ST_VISIBILITY(sym.Other).String(),
+			Library:     sym.Library,
+			Version:     sym.Version,
+			Value:       sym.Value,
+			Size:        sym.Size,
 		}
 	}
 
@@ -117,13 +121,13 @@ func Run(args []string) error {
 	w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tValue\tSize\tName")
-	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t-----\t----\t----")
+	fmt.Fprintln(w, "Binding\tType\tVisibility\tLibrary\tVersion\tValue\tSize\tNameVersion\tName")
+	fmt.Fprintln(w, "-------\t----\t----------\t-------\t-------\t-----\t----\t-----------\t----")
 
 	for _, sym := range symbols {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%d\t%d\t%s\t%s\n",
 			sym.Binding,
 			sym.Type,
 			sym.Visibility,
@@ -131,6 +135,7 @@ func Run(args []string) error {
 			sym.Version,
 			sym.Value,
 			sym.Size,
+			sym.NameVersion,
 			sym.Name,
 		)
 	}
@@ -139,12 +144,13 @@ func Run(args []string) error {
 }
 
 type Symbol struct {
-	Name       string
-	Binding    string
-	Type       string
-	Visibility string
-	Library    string
-	Version    string
-	Value      uint64
-	Size       uint64
+	Name        string
+	NameVersion string
+	Binding     string
+	Type        string
+	Visibility  string
+	Library     string
+	Version     string
+	Value       uint64
+	Size        uint64
 }
